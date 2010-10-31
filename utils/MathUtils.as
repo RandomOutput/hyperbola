@@ -10,8 +10,9 @@ package utils
 		}
 		
 		//given two ordered pairs gives the distance
-		public static function twoPointDist(x1:Number, x2:Number, y1:Number, y2:Number) { //solve for the distance between two points
-			return Math.sqrt(((x1-x2) * (x1-x2)) + ((y1 - y2) * (y1 - y2)));
+		public static function twoPointDist(x1:Number, y1:Number, x2:Number, y2:Number):Number { //solve for the distance between two points
+			var retVal:Number = Math.sqrt(( (x1-x2) * (x1-x2) )+( (y1-y2) * (y1-y2) ));
+			return retVal;
 		}
 		
 		//send it two points and it will give you the angle in degrees

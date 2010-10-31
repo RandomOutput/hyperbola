@@ -47,6 +47,9 @@ package engine
 		
 		private var startTime:Number;
 		
+		//handles if game is currently running
+		private var gameOn:Boolean = false;
+		
 		//collision handling
 		private var collisionList:Vector.<Collision>;
 		
@@ -56,21 +59,30 @@ package engine
 		//Main listens for the stage and runs init when the stage is confirmed
 		public function Main()
 		{
+			if(DEBUG_MODE){trace("Main()");}
 			if(stage) {init();}else{this.addEventListener(Event.ADDED_TO_STAGE, init);}
 		}
 		
 		//init waits to start the game and kicks off input
 		private function init(e:Event = null):void {
+			if(DEBUG_MODE){trace("init()");}
 			//kick off tuio listening
 			totemInput = new TotemInputController();
 			stage.addChild(totemInput);	
 			
 			//kick off keyboard listening (currently required for game start)
-			this.addEventListener(KeyboardEvent.KEY_DOWN, keyboardListener);
+			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyboardListener);
 		}
 		
 		//defines data for all game objects and kicks off the engine
 		private function gameStart():void {
+			if(gameOn){
+				clearGame();
+			}
+			
+			gameOn = true;
+			
+			if(DEBUG_MODE){trace("gameStart()");}
 			//initialize player scores
 			player1Score = 0;
 			player2Score = 0;
@@ -90,12 +102,16 @@ package engine
 			//store the startTime for this game instance
 			startTime = getTimer();
 			
+			spawnPuck(200,100);
+			spawnPuck(800,500);
+			
 			//set engine in motion
 			this.addEventListener(Event.ENTER_FRAME, tick);
 		}
 		
 		//primary frame-handler for engine
 		private function tick(e:Event):void {
+			//if(DEBUG_MODE){trace("tick()");}
 			//initialize (clear) collision and teleportation lists for this frame
 			collisionList = new Vector.<Collision>;
 			teleportationList = new Vector.<Teleportation>;
@@ -193,7 +209,7 @@ package engine
 			
 			for each(var puck2:Puck in puckList) {
 				for each(var puck3:Puck in puckList) {
-					if(MathUtils.twoPointDist(puck2.x, puck2.y, puck3.x, puck3.y) < puck2.radius + puck3.radius && !alreadyColliding(puck2, puck3)) {
+					if(puck2 != puck3 && MathUtils.twoPointDist(puck2.x, puck2.y, puck3.x, puck3.y) <= (puck2.radius + puck3.radius) && !alreadyColliding(puck2, puck3)) {
 						collisionList.push(new Collision(puck2, puck3));
 					}
 				}
@@ -209,11 +225,19 @@ package engine
 						collisionList.push(new Collision(puck2, goal2));
 					}
 				}
+				
+				if(puck2.x + puck2.radius > rightBound || puck2.x - puck2.radius < leftBound) {
+					wallCollision(puck2, "side");
+				}
+				
+				if(puck2.y + puck2.radius > bottomBound || puck2.y - puck2.radius < topBound) {
+					wallCollision(puck2, "base");	
+				}
 			}
 			
 			for each(var wormhole3:Wormhole in wormholeList) {				
 				for each(var wormhole4:Wormhole in wormholeList) {
-					if(MathUtils.twoPointDist(wormhole3.x, wormhole3.y, wormhole4.x, wormhole4.y) < wormhole3.radius + wormhole4.radius && !alreadyColliding(wormhole3, wormhole4)) {
+					if(wormhole3 != wormhole4 && MathUtils.twoPointDist(wormhole3.x, wormhole3.y, wormhole4.x, wormhole4.y) < wormhole3.radius + wormhole4.radius && !alreadyColliding(wormhole3, wormhole4)) {
 						collisionList.push(new Collision(wormhole3, wormhole4));
 					}
 				}
@@ -227,10 +251,19 @@ package engine
 			
 			for each(var goal4:Goal in goalList) {				
 				for each(var goal5:Goal in goalList) {
-					if(MathUtils.twoPointDist(goal4.x, goal4.y, goal5.x, goal5.y) < goal4.radius + goal5.radius && !alreadyColliding(goal4, goal5)) {
+					if(goal4 != goal5 && MathUtils.twoPointDist(goal4.x, goal4.y, goal5.x, goal5.y) < goal4.radius + goal5.radius && !alreadyColliding(goal4, goal5)) {
 						collisionList.push(new Collision(puck2, goal2));
 					}
 				}
+				
+				if(goal4.x + goal4.radius > rightBound || goal4.x - goal4.radius < leftBound) {
+					wallCollision(goal4, "side");
+				}
+					
+				if(goal4.y + goal4.radius > bottomBound || goal4.y - goal4.radius < topBound) {
+					wallCollision(goal4, "base");	
+				}
+				
 			}
 		}
 		
@@ -253,7 +286,7 @@ package engine
 		private function resolveCollisions():void {
 			for each(var collision:Collision in collisionList) {
 				var obj1:DynamicCircle = collision.obj1; //store object1 for ease of reference
-				var obj2:DynamicCircle = collision.obj1; //store object2 for ease of reference
+				var obj2:DynamicCircle = collision.obj2; //store object2 for ease of reference
 				
 				if(obj1 is Totem) { // if the first object is a totem
 					if(obj2 is Puck) {// if the second object is a puck
@@ -326,8 +359,21 @@ package engine
 			}
 		}
 		
+		private function wallCollision(obj:DynamicCircle, sideType:String) {
+			if(sideType == "side") {
+				obj.deltaX *= -1;
+			} else if(sideType == "base") {
+				obj.deltaY *= -1;
+			}
+		}
+		
 		private function circularCollision(obj1:DynamicCircle, obj2:DynamicCircle, object1Only:Boolean = false) {
 			//collision equations translated from java: http://www.phy.ntnu.edu.tw/ntnujava/index.php?topic=4
+			trace("circ collision");
+			if(obj1 == obj2){
+				if(DEBUG_MODE){trace("same object");}
+				return;
+			}
 			
 			var mass1:Number = obj1.density * obj1.radius;
 			var mass2:Number = obj2.density * obj2.radius;
@@ -350,9 +396,10 @@ package engine
 			
 			obj1.deltaX = vx1;
 			obj1.deltaY = vy1;
+			
 			if(!object1Only){
-				obj2.deltaX = vx1;
-				obj2.deltaY = vy1;
+				obj2.deltaX = vx2;
+				obj2.deltaY = vy2;
 			}
 		}
 		
@@ -396,10 +443,19 @@ package engine
 			}
 		}
 		
-		private function spawnPuck() {
+		private function spawnPuck(xLoc:Number = -1, yLoc:Number = -1) {
 			//spawn new puck in center
 			//currently spawning with semi-random deltaX and deltaY
-			var newPuck:Puck = new Puck(wormholeList, goalList, Math.random()*10, Math.random()*10, 10, 100);
+			if(DEBUG_MODE){trace("spawn puck");}
+			var newPuck:Puck;
+			if(xLoc == -1 && yLoc == -1) {
+				if(DEBUG_MODE){trace("spawn default puck");}
+				newPuck = new Puck(wormholeList, goalList, (rightBound / 2) + leftBound,(bottomBound / 2) + topBound, (Math.random()*10) - 5, (Math.random()*10) - 5, 43, 100);
+			} else {
+				if(DEBUG_MODE){trace("spawn placed puck");}
+				newPuck = new Puck(wormholeList, goalList, xLoc,yLoc, (Math.random()*10) - 5, (Math.random()*10) - 5, 43, 100);
+			}
+			
 			puckList.push(newPuck);
 			stage.addChild(newPuck);
 		}
@@ -410,12 +466,60 @@ package engine
 		
 		//Keyboard Listeners
 		private function keyboardListener(e:KeyboardEvent):void {
+			if(DEBUG_MODE){trace("keyboardListener()");}
+			if(DEBUG_MODE){trace("KeyCode: " + e.keyCode);}
 			switch(e.keyCode) {
 				case 32:
 					gameStart();
 					break;
 				default:
 					break;
+			}
+		}
+		
+		//Clears all game actors from stage for game restart
+		private function clearGame():void {
+			for(var i:int=0; i<totemList.length;i++) {
+				if(puckList[i] != null && stage.contains(puckList[i])){
+					stage.removeChild(puckList[i]);
+				}
+			}
+			
+			totemList = new Vector.<Totem>;
+			
+			for(var j:int=0; j<puckList.length;j++){
+				if(puckList[j] != null && stage.contains(puckList[j])){
+					stage.removeChild(puckList[j]);
+				}
+			}
+			
+			puckList = new Vector.<Puck>;
+			
+			for(var k:int=0; k<wormholeList.length;k++){
+				if(puckList[k] != null && stage.contains(puckList[k])){
+					stage.removeChild(puckList[k]);
+				}
+			}
+			
+			wormholeList = new Vector.<Wormhole>;
+			
+			for(var l:int=0; l<goalList.length;l++){
+				if(puckList[l] != null && stage.contains(puckList[l])){
+					stage.removeChild(puckList[l]);
+				}
+			}
+			
+			goalList = new Vector.<Goal>;
+		}
+		
+		//Toggles Game Execution
+		private function playPause():void {
+			if(gameOn) {
+				this.removeEventListener(Event.ENTER_FRAME, tick);
+				gameOn = false; //CAR!!!!
+			} else if(!gameOn) {
+				this.addEventListener(Event.ENTER_FRAME, tick);
+				gameOn = true; //GAME ON!!!!
 			}
 		}
 	}

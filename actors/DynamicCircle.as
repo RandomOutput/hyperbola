@@ -19,6 +19,7 @@ package actors
 			deltaX = _deltaX;
 			deltaY = _deltaY;
 			radius = _radius;
+			density = _density;
 		}
 		
 		public function behavior():void {
