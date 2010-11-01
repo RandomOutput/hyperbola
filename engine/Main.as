@@ -1,4 +1,4 @@
-package engine
+﻿package engine
 {
 	import actors.DynamicCircle;
 	import actors.Goal;
@@ -26,8 +26,14 @@ package engine
 		//debugging
 		private const DEBUG_MODE:Boolean = true;
 		
+		//actor radii
+		private const TOTEM_RAD:Number = 57.5;
+		private const PUCK_RAD:Number = 46;
+		private const WORMHOLE_RAD:Number = 80;
+		
 		//TUIO data input
-		private var totemInput:TotemInputController;
+		private var totemStream:TotemInputController;
+		private var latestTotemData:Array;
 		
 		//scoring
 		private var player1Score:Number;
@@ -45,7 +51,12 @@ package engine
 		private var rightBound:int;
 		private var bottomBound:int;
 		
-		private var startTime:Number;
+		private var playspace:Playspace;
+		
+		private var startTime:Number; //start time for game instance
+		
+		//non-game UI elements
+		private var startScreen:StartScreen;
 		
 		//handles if game is currently running
 		private var gameOn:Boolean = false;
@@ -66,9 +77,22 @@ package engine
 		//init waits to start the game and kicks off input
 		private function init(e:Event = null):void {
 			if(DEBUG_MODE){trace("init()");}
+			
 			//kick off tuio listening
-			totemInput = new TotemInputController();
-			stage.addChild(totemInput);	
+			totemStream = new TotemInputController();
+			stage.addChild(totemStream);	
+			
+			//initialize and place playspace elements
+			playspace = new Playspace();
+			playspace.x = 34;
+			playspace.y = 37;
+			stage.addChild(playspace);
+			
+			//initialize and place start screen UI elements
+			startScreen = new StartScreen();
+			startScreen.x = 88;
+			startScreen.y = 82;
+			stage.addChild(startScreen);
 			
 			//kick off keyboard listening (currently required for game start)
 			stage.addEventListener(KeyboardEvent.KEY_DOWN, keyboardListener);
@@ -76,6 +100,10 @@ package engine
 		
 		//defines data for all game objects and kicks off the engine
 		private function gameStart():void {
+			if(stage.contains(startScreen)) {
+				stage.removeChild(startScreen);
+			}
+			
 			if(gameOn){
 				clearGame();
 			}
@@ -93,17 +121,25 @@ package engine
 			wormholeList = new Vector.<Wormhole>;
 			goalList = new Vector.<Goal>;
 			
+			//define totems
+			for(var i:int=0;i<4;i++) {
+				var newTotem = new Totem(0,0,TOTEM_RAD);
+				totemList.push(newTotem);
+				stage.addChild(newTotem);
+			}
+			
 			//define the initial game space
-			topBound = 0;
-			rightBound = 1280;
-			bottomBound = 800;
-			leftBound = 0;
+			topBound = 37;
+			rightBound = 1248;
+			bottomBound = 696;
+			leftBound = 34;
 			
 			//store the startTime for this game instance
 			startTime = getTimer();
 			
-			spawnPuck(200,100);
+			spawnPuck(200, 500);
 			spawnPuck(800,500);
+			spawnWormholePair();
 			
 			//set engine in motion
 			this.addEventListener(Event.ENTER_FRAME, tick);
@@ -117,7 +153,7 @@ package engine
 			teleportationList = new Vector.<Teleportation>;
 			
 			//1. update table tracking data
-			if(CONTROL_TYPE == "Tuio_UDP") {
+			if(CONTROL_TYPE == "TUIO_UDP") {
 				updateIr();
 			} else if(CONTROL_TYPE == "Keyboard") {
 				if(DEBUG_MODE) {trace("init keyboard control");}
@@ -149,12 +185,24 @@ package engine
 		
 		//Bring in IR input & distribute data
 		private function updateIr():void {
-			var newData = totemInput.totemData();
+			//trace("updateIr()");
+			latestTotemData = totemStream.totemData();
+			//trace(latestTotemData);
 		}
 		
 		//move totems based on latest IR data
 		private function updateTotems():void {
+			totemList[0].x = latestTotemData[0].getLoc().x;
+			totemList[0].y = latestTotemData[0].getLoc().y;
 			
+			totemList[1].x = latestTotemData[1].getLoc().x;
+			totemList[1].y = latestTotemData[1].getLoc().y;
+			
+			totemList[2].x = latestTotemData[2].getLoc().x;
+			totemList[2].y = latestTotemData[2].getLoc().y;
+			
+			totemList[3].x = latestTotemData[3].getLoc().x;
+			totemList[3].y = latestTotemData[3].getLoc().y;
 		}
 		
 		//itterate through totems, run inate behavior function
@@ -190,6 +238,7 @@ package engine
 			for each(var totem:Totem in totemList) {
 				for each(var puck:Puck in puckList) {
 					if(MathUtils.twoPointDist(totem.x, totem.y, puck.x, puck.y) < totem.radius + puck.radius && !alreadyColliding(totem, puck)) {
+						trace("puck vs. totem: DETECTED");
 						collisionList.push(new Collision(totem, puck));
 					}
 				}
@@ -216,7 +265,8 @@ package engine
 				
 				for each(var wormhole2:Wormhole in wormholeList) {
 					if(MathUtils.twoPointDist(puck2.x, puck2.y, wormhole2.x, wormhole2.y) < puck2.radius + wormhole2.radius && !alreadyColliding(puck2, wormhole2)) {
-						collisionList.push(new Collision(totem, wormhole));
+						//trace("puck collide with wormhole");
+						collisionList.push(new Collision(puck2, wormhole2));
 					}
 				}
 				
@@ -292,6 +342,7 @@ package engine
 					if(obj2 is Puck) {// if the second object is a puck
 					//collide with puck
 						//1. modify puck vector
+						trace("totem vs. puck: RESOLUTION CALL");
 						circularCollision(obj2, obj1, true);
 					}
 				} else if(obj1 is Puck){ // if the first object is a puck
@@ -308,6 +359,7 @@ package engine
 					//collide puck with wormhole
 						//1. create teleportation object
 						//2. push to teleportation list
+						//trace("create new teleporation");
 						teleportationList.push(new Teleportation(obj1, (obj2 as Wormhole)));
 					} else if(obj2 is Goal) { //if second object is a goal
 					//collide puck with goal
@@ -409,8 +461,11 @@ package engine
 				var teleportedObj:DynamicCircle = teleportation.object;
 				var destination:Wormhole = teleportation.destination;
 				
-				teleportedObj.x = destination.x;
-				teleportedObj.y = destination.y;
+				if(destination != null) {
+					teleportedObj.x = destination.x;
+					teleportedObj.y = destination.y;
+					//destination = destination.pair;
+				}
 			}
 		}		
 		
@@ -446,22 +501,38 @@ package engine
 		private function spawnPuck(xLoc:Number = -1, yLoc:Number = -1) {
 			//spawn new puck in center
 			//currently spawning with semi-random deltaX and deltaY
-			if(DEBUG_MODE){trace("spawn puck");}
 			var newPuck:Puck;
 			if(xLoc == -1 && yLoc == -1) {
 				if(DEBUG_MODE){trace("spawn default puck");}
-				newPuck = new Puck(wormholeList, goalList, (rightBound / 2) + leftBound,(bottomBound / 2) + topBound, (Math.random()*10) - 5, (Math.random()*10) - 5, 43, 100);
+				newPuck = new Puck(wormholeList, goalList, (rightBound / 2) + leftBound,(bottomBound / 2) + topBound, (Math.random()*50) - 25, (Math.random()*50) - 25, PUCK_RAD, 100);
 			} else {
 				if(DEBUG_MODE){trace("spawn placed puck");}
-				newPuck = new Puck(wormholeList, goalList, xLoc,yLoc, (Math.random()*10) - 5, (Math.random()*10) - 5, 43, 100);
+				newPuck = new Puck(wormholeList, goalList, xLoc,yLoc, (Math.random()*50) - 25, (Math.random()*50) - 25, PUCK_RAD, 100);
 			}
 			
 			puckList.push(newPuck);
 			stage.addChild(newPuck);
 		}
 		
-		private function spawnWormhole() {
-			var newWormhole:Wormhole = new Wormhole(0,0,0,0,10,null,0);
+		//spawns a pair of wormholes at oposing sides of the s
+		private function spawnWormholePair(xLoc = -1, yLoc = -1) {
+			var newWormhole:Wormhole;
+			var newWormholePair:Wormhole;
+			
+			if(xLoc == -1 && yLoc == -1) {
+				if(DEBUG_MODE){trace("spawn default puck");}
+				newWormhole = new Wormhole((rightBound / 2) + leftBound - 400,(bottomBound / 2) + topBound, 0, 0, WORMHOLE_RAD, null, 0);
+				newWormholePair = new Wormhole(stage.width - newWormhole.x, stage.height - newWormhole.y, 0,0,WORMHOLE_RAD, newWormhole,0);
+			} else {
+				if(DEBUG_MODE){trace("spawn placed puck");}
+				newWormhole = new Wormhole(xLoc,yLoc, 0, 0, WORMHOLE_RAD, null, 0);
+				newWormholePair = new Wormhole(stage.width - newWormhole.x, stage.height - newWormhole.y, 0,0, WORMHOLE_RAD ,newWormhole,0);
+			}
+			
+			wormholeList.push(newWormhole);
+			wormholeList.push(newWormholePair);
+			stage.addChild(newWormhole);
+			stage.addChild(newWormholePair);
 		}
 		
 		//Keyboard Listeners
@@ -496,16 +567,16 @@ package engine
 			puckList = new Vector.<Puck>;
 			
 			for(var k:int=0; k<wormholeList.length;k++){
-				if(puckList[k] != null && stage.contains(puckList[k])){
-					stage.removeChild(puckList[k]);
+				if(wormholeList[k] != null && stage.contains(wormholeList[k])){
+					stage.removeChild(wormholeList[k]);
 				}
 			}
 			
 			wormholeList = new Vector.<Wormhole>;
 			
 			for(var l:int=0; l<goalList.length;l++){
-				if(puckList[l] != null && stage.contains(puckList[l])){
-					stage.removeChild(puckList[l]);
+				if(goalList[l] != null && stage.contains(goalList[l])){
+					stage.removeChild(goalList[l]);
 				}
 			}
 			
@@ -515,9 +586,11 @@ package engine
 		//Toggles Game Execution
 		private function playPause():void {
 			if(gameOn) {
+				stage.removeChild(startScreen);
 				this.removeEventListener(Event.ENTER_FRAME, tick);
 				gameOn = false; //CAR!!!!
 			} else if(!gameOn) {
+				stage.addChild(startScreen);
 				this.addEventListener(Event.ENTER_FRAME, tick);
 				gameOn = true; //GAME ON!!!!
 			}

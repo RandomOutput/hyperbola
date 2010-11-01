@@ -5,7 +5,11 @@ package actors
 	
 	public class DynamicCircle extends MovieClip
 	{
-		protected const GRAV:Number = 1;
+		protected const GRAV:Number = .01;
+		protected const CUTOFF:Number = 160;
+		
+		private static const FRICTION:Number = .99;
+		private const MIN_SPEED:Number = 5;
 		
 		public var deltaX:Number;
 		public var deltaY:Number;
@@ -23,7 +27,10 @@ package actors
 		}
 		
 		public function behavior():void {
-			
+			if(Math.sqrt((this.deltaX*this.deltaX) + (this.deltaY + this.deltaY)) > MIN_SPEED) {
+				this.deltaX *= FRICTION;
+				this.deltaY *= FRICTION;
+			}
 		}
 		
 		public function move():void {

@@ -27,7 +27,6 @@ package detection {
 	import tuio.TuioEvent;
 	import tuio.connectors.*;
 	import tuio.osc.*;
-	import detection.IRPoint;
 	
 	public class TotemInputController extends MovieClip{
 		
@@ -37,11 +36,11 @@ package detection {
 		private var totems:Array = new Array(new LpergTotem(), new LpergTotem(), new LpergTotem(), new LpergTotem());
 		
 		//tuio controller vars
-		private var tuioClient:TuioClient;
+		private var tuioC:TuioClient;
 		private var tuioMngr:TuioManager;
 
 
-		public function totemInputController() {
+		public function TotemInputController() {
 			//check to see if the stage is active.  If not, wait till the stage is active
 			if (stage) { init(); }
 			else { addEventListener(Event.ADDED_TO_STAGE, init); }
@@ -57,47 +56,55 @@ package detection {
 			 * be found in the TUIO Flash Blog Documentation files.
 			**/
 			
-			this.tuioClient = new TuioClient(new UDPConnector());
-			//TuioLegacyListener.init(stage, tuio);			
+			this.tuioC = new TuioClient(new UDPConnector());
+			
 			//TUIO manager will watch for all incoming TUIO data
-			this.tuioMngr = TuioManager.init(stage, this.tuioClient);
+			this.tuioMngr = TuioManager.init(stage, this.tuioC);
 			
 			//listeners to track for new, upadates, and removed TUIO data points.
 			this.tuioMngr.addEventListener(TuioEvent.ADD, tuioAddHandler);
 			this.tuioMngr.addEventListener(TuioEvent.UPDATE, tuioUpdateHandler);
 			this.tuioMngr.addEventListener(TuioEvent.REMOVE, tuioRemoveHandler);
 			
-			//Listening to track for gestures and patterns in totems
-			//this.addEventListener(Event.ENTER_FRAME, gestureTracking);
 		}
 		
 		//accessor for totem data
-		public function totemData():Vector.<IRPoint> {
-			
-			var returnVector:Vector.<IRPoint> = new Vector.<IRPoint>(0,false);
-
+		public function totemData(totemID:Number = -1):Array {
+			/**	
+			 * if the caller enters no totemID 
+			 * all totems will be returned
+			 * 
+			 * if the caller enters a totemID 
+			 * then only that totem is retured 	
+			**/
+			 
 			//check for dummy mode, if so input dummy data
 			if(DUMMY_MODE) {
 				//dummy locations
-				returnVector.push(new IRPoint(20, 40));
-				returnVector.push(new IRPoint(80, 20));
-				returnVector.push(new IRPoint(120, 140));
-				returnVector.push(new IRPoint(300, 400));
+				totems[0].setLoc(20,40);
+				totems[1].setLoc(80, 20);
+				totems[2].setLoc(120,140);
+				totems[3].setLoc(300,400);
+				
+				//dummy deltas
+				totems[1].setDeltaX(10);
 			}
 			
-			for(var i:int=0;i<totems.length;i++){
-				returnVector.push(new IRPoint(totems[i].getLoc().x, totems[i].getLoc().y));
+			if(totemID == -1) {
+				return totems;
+			} else if (totemID >=0 && totemID <= 3){
+				return totems[totemID];
+			} else {
+				trace("ERROR: Invalid Totem ID [TotemInput.as -> TotemData()]");
+				return null;
 			}
-			
-			return returnVector;
 		}
-		
 		
 		/** Tuio Event Respone Functions **/
 		
 		private function tuioAddHandler(e:TuioEvent) { //solve for a new TUIO point
 			//trace("Add TUIO Point [tuioInputController.as -> tuioAddHandler()]");
-			trace("add");
+			
 			var inactiveTotems:Array = new Array();
 			
 			var tuioPoint:Point = new Point(e.tuioContainer.x*stage.stageWidth, e.tuioContainer.y*stage.stageHeight); //get the x and y from the TuioEvent and add them to a point
@@ -141,18 +148,14 @@ package detection {
 		}
 		
 		private function tuioUpdateHandler(e:TuioEvent) { // solve for an updated tuio point
-			trace("=====");
-			trace("Update TUIO Point [tuioInputController.as -> tuioUpdateHandler()]");
-			trace(e.tuioContainer.sessionID.toString());
-			trace("=====");
-			//trace("update");
-			var tuioPoint:Point = new Point(e.tuioContainer.x*stage.stageWidth, e.tuioContainer.y*stage.stageHeight); //get the x and y from the TuioEvent and add them to a point
+			//trace("Update TUIO Point [tuioInputController.as -> tuioUpdateHandler()]");
+			var tuioPoint:Point = new Point(e.tuioContainer.x*stage.stageWidth,e.tuioContainer.y*stage.stageHeight); //get the x and y from the TuioEvent and add them to a point
 			tuioToTotem(e).setLoc(tuioPoint.x, tuioPoint.y); //update that point
 		}
 		
 		private function tuioRemoveHandler(e:TuioEvent) {
 			//trace("Remove TUIO Point [tuioInputController.as -> tuioRemoveHandler()]");
-			trace("remove");
+			
 			tuioToTotem(e).deactivate();
 		}
 		
@@ -184,6 +187,8 @@ package detection {
 			}
 			
 		}
+		
+		
 		
 		/** Relative Location and Angle Finding **/
 		private function twoPointDist(x1:Number, y1:Number, x2:Number, y2:Number) { //solve for the distance between two points

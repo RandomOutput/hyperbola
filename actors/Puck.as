@@ -22,23 +22,33 @@ package actors
 		public override function behavior():void {
 			//F = GmM/ r^2
 			var gForce:Number;
+			var slopeX:Number;
+			var slopeY:Number;
 			var modX:Number;
 			var modY:Number;
 			
 			for each(var wormhole in wormholeList){
-				gForce = (GRAV * (this.radius * this.density) * (wormhole.radius * wormhole.density)) / (MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y) * MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y));
-				modX = gForce * MathUtils.degreesToSlope(MathUtils.getAngle(new Point(this.x, this.y), new Point(wormhole.x, wormhole.y))).x;
-				modY = gForce * MathUtils.degreesToSlope(MathUtils.getAngle(new Point(this.x, this.y), new Point(wormhole.x, wormhole.y))).y;
-				this.deltaX += modX;
-				this.deltaY += modY;
+				if(MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y) <= CUTOFF){
+					gForce = (GRAV * (this.radius * this.density) * (wormhole.radius * wormhole.density)) / ((MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y) * (MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y))));
+					
+					modX = (wormhole.x - this.x) / MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y);
+					modY = (wormhole.y - this.y) / MathUtils.twoPointDist(this.x, this.y, wormhole.x, wormhole.y);
+					
+					this.deltaX += modX;
+					this.deltaY += modY;
+				}
+				
+				super.behavior();
+
 			}
 			
 			for each(var goal in goalList){
 				gForce = (GRAV * (this.radius * this.density) * (goal.radius * goal.density)) / (MathUtils.twoPointDist(this.x, this.y, goal.x, goal.y) * MathUtils.twoPointDist(this.x, this.y, goal.x, goal.y));
-				modX = gForce * MathUtils.degreesToSlope(MathUtils.getAngle(new Point(this.x, this.y), new Point(goal.x, goal.y))).x;
-				modY = gForce * MathUtils.degreesToSlope(MathUtils.getAngle(new Point(this.x, this.y), new Point(goal.x, goal.y))).y;
+				modX = (goal.x - this.x) / MathUtils.twoPointDist(this.x, this.y, goal.x, goal.y);
+				modY = (goal.y - this.y) / MathUtils.twoPointDist(this.x, this.y, goal.x, goal.y);
+				
 				this.deltaX += modX;
-				this.deltaY += modY;
+				this.deltaY -= modY;
 			}
 		}
 	}
